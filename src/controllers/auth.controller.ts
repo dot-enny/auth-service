@@ -1,5 +1,5 @@
 import { type Request, type Response } from "express"
-import { loginUser as loginUserService, registerUser as registerUserService } from "../services/auth.service.js";
+import { getUser, loginUser as loginUserService, refreshToken as refreshTokenService, registerUser as registerUserService } from "../services/auth.service.js";
 
 export const register = async (req: Request, res: Response) => {
     const { email, password } = req.body;
@@ -67,3 +67,65 @@ export const login = async (req: Request, res: Response) => {
 
     return res.status(500).json({ error: 'Internal server error.' });
 };
+
+export const refresh = async (req: Request, res: Response) => {
+    const rawRefreshToken = req.cookies.refreshToken;
+
+    if (!rawRefreshToken) {
+        return res.status(401).json({ error: 'Refresh token cookie missing.' });
+    }
+
+    try {
+        const { newAccessToken, nextRawToken } = await refreshTokenService(rawRefreshToken);
+
+        // Update client cookie with the rotated token
+        res.cookie('refreshToken', nextRawToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            path: '/api/auth',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        return res.status(200).json({
+            accessToken: newAccessToken,
+        });
+
+    } catch (error) {
+        if (!(error instanceof Error)) return;
+
+        res.clearCookie('refreshToken', { path: '/api/auth' });
+
+        switch (error.message) {
+            case "INVALID_REFRESH_TOKEN":
+                return res.status(401).json({ error: "Invalid refresh token." });
+
+            case "SESSION_COMPROMISED":
+                return res.status(403).json({ error: 'Compromised session detected. All sessions revoked.' });
+
+            case "TOKEN_EXPIRED":
+                return res.status(401).json({ error: 'Refresh token has expired.' });
+
+            default:
+                break
+        }
+    }
+
+    return res.status(500).json({ error: 'Internal server error.' });
+}
+
+export const testProtected = async (req: Request, res: Response) => {
+    // req.user is guaranteed to exist by requireAuth
+    const userId = req.user!.userId;
+    try {
+        const user = await getUser(userId);  
+        return res.status(200).json({ user }); 
+        
+    } catch (error) {
+        if (error instanceof Error && error.message == "USER_NOT_FOUND") {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+    }
+
+    return res.status(500).json({ error: 'Internal server error.' });
+}

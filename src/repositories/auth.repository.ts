@@ -36,8 +36,43 @@ export const storeRefreshToken = async (userId: number, tokenHash: string, famil
     const insertTokenQuery = `
       INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
       VALUES ($1, $2, $3, $4);
+      RETURNING id;
     `;
     const result = await pool.query(insertTokenQuery, [userId, tokenHash, familyId, expiresAt]);
 
     return result.rows[0]
+}
+
+export const fetchRefreshToken = async (incomingHash: string) => {
+    const tokenQuery = `
+      SELECT rt.id, rt.user_id, rt.family_id, rt.is_revoked, rt.expires_at, u.role
+      FROM refresh_tokens rt
+      JOIN users u ON u.id = rt.user_id
+      WHERE rt.token_hash = $1;
+    `;
+    const result = await pool.query(tokenQuery, [incomingHash]);
+    
+    return result.rows[0]
+}
+
+export const invalidateTokenFamily = async (familyId: string) => {
+    const result = await pool.query('UPDATE refresh_tokens SET is_revoked = TRUE WHERE family_id = $1', [familyId]);
+    return result.rows[0] ?? null
+}
+
+export const invalidateToken = async (tokenRecordId: number) => {
+    const result = await pool.query(
+        `
+            UPDATE refresh_tokens
+            SET is_revoked = TRUE AND is_revoked = FALSE
+            WHERE id = $1
+            RETURNING id;
+        `, 
+        [tokenRecordId]);
+    return result.rows[0] ?? null
+}
+
+export const findUserById = async (userId: number) => {
+    const result = await pool.query('SELECT id, email, role, created_at FROM users WHERE id = $1', [userId]);
+    return result.rows[0] ?? null
 }
