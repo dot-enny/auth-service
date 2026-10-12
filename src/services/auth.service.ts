@@ -53,7 +53,7 @@ export const refreshToken = async (rawRefreshToken: string) => {
 
     // REUSE DETECTION TRAP:
     // If a revoked token is used again, the session family has been compromised
-    if (tokenRecord.isRevoked) {
+    if (tokenRecord.is_revoked) {
         console.warn(`[SECURITY BREACH] Replay attack detected for family_id: ${tokenRecord.family_id}. Revoking entire chain.`);
         // Invalidate all tokens associated with this session family
         await invalidateTokenFamily(tokenRecord.family_id)
