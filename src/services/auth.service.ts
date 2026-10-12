@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { generateRefreshToken, hashPassword, signAccessToken, verifyPassword } from "../auth.utils.js";
-import { createUser, fetchRefreshToken, fetchUserByEmail, findUserByEmail, findUserById, invalidateToken, invalidateTokenFamily, storeRefreshToken } from "../repositories/auth.repository.js";
+import { createUser, fetchRefreshToken, fetchUserByEmail, findUserByEmail, findUserById, invalidateTokenFamily, rotateRefreshToken, storeRefreshToken } from "../repositories/auth.repository.js";
 
 export const registerUser = async (email: string, password: string) => {
     const existingUser = await findUserByEmail(email);
@@ -32,15 +32,15 @@ export const loginUser = async (email: string, password: string) => {
 
     await storeRefreshToken(existingUser.id, tokenHash, familyId, expiresAt)
 
-    return { 
-        accessToken, 
+    return {
+        accessToken,
         rawToken,
         user: {
             id: existingUser.id,
             email: existingUser.email,
             role: existingUser.role
         },
-     };
+    };
 }
 
 export const refreshToken = async (rawRefreshToken: string) => {
@@ -64,19 +64,27 @@ export const refreshToken = async (rawRefreshToken: string) => {
         throw new Error("TOKEN_EXPIRED")
     }
 
-    // Invalidate the consumed refresh token
-    await invalidateToken(tokenRecord.id)
-
-    // 6. Rotate: Generate next token pair in the same family
+    // Rotate: Generate next token pair in the same family
     const { rawToken: nextRawToken, tokenHash: nextTokenHash } = generateRefreshToken();
     const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    await storeRefreshToken(tokenRecord.user_id, nextTokenHash, tokenRecord.family_id, newExpiresAt)
+    const rotated = await rotateRefreshToken(
+        tokenRecord.id,
+        tokenRecord.user_id,
+        tokenRecord.family_id,
+        nextTokenHash,
+        newExpiresAt
+    );
+
+    if (!rotated) {
+        await invalidateTokenFamily(tokenRecord.family_id);
+        throw new Error("SESSION_COMPROMISED");
+    }
 
     // 7. Issue fresh access token
     const newAccessToken = signAccessToken({
-      userId: tokenRecord.user_id,
-      role: tokenRecord.role,
+        userId: tokenRecord.user_id,
+        role: tokenRecord.role,
     });
 
     return {

@@ -60,19 +60,55 @@ export const invalidateTokenFamily = async (familyId: string) => {
     return result.rows[0] ?? null
 }
 
-export const invalidateToken = async (tokenRecordId: number) => {
-    const result = await pool.query(
-        `
-            UPDATE refresh_tokens
-            SET is_revoked = TRUE AND is_revoked = FALSE
-            WHERE id = $1
-            RETURNING id;
-        `, 
-        [tokenRecordId]);
-    return result.rows[0] ?? null
-}
-
 export const findUserById = async (userId: number) => {
     const result = await pool.query('SELECT id, email, role, created_at FROM users WHERE id = $1', [userId]);
     return result.rows[0] ?? null
 }
+
+export const rotateRefreshToken = async (
+    tokenId: number,
+    userId: number,
+    familyId: string,
+    tokenHash: string,
+    expiresAt: Date
+) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const consumed = await client.query(
+            `
+            UPDATE refresh_tokens
+            SET is_revoked = TRUE
+            WHERE id = $1
+              AND is_revoked = FALSE
+            RETURNING id;
+            `,
+            [tokenId]
+        );
+
+        // Another request already consumed this token.
+        if (consumed.rowCount !== 1) {
+            await client.query("ROLLBACK");
+            return false;
+        }
+
+        await client.query(
+            `
+            INSERT INTO refresh_tokens
+                (user_id, token_hash, family_id, expires_at)
+            VALUES ($1, $2, $3, $4);
+            `,
+            [userId, tokenHash, familyId, expiresAt]
+        );
+
+        await client.query("COMMIT");
+        return true;
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
