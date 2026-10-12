@@ -35,7 +35,7 @@ export const createUser = async (email: string, passwordHash: string) => {
 export const storeRefreshToken = async (userId: number, tokenHash: string, familyId: string, expiresAt: Date) => {
     const insertTokenQuery = `
       INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
-      VALUES ($1, $2, $3, $4);
+      VALUES ($1, $2, $3, $4)
       RETURNING id;
     `;
     const result = await pool.query(insertTokenQuery, [userId, tokenHash, familyId, expiresAt]);
