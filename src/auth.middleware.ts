@@ -3,27 +3,30 @@ import { verifyAccessToken, type TokenPayload } from './auth.utils.js';
 
 // Extend Express Request interface to include the authenticated user payload
 declare global {
-  namespace Express {
-    interface Request {
-      user?: TokenPayload;
+    namespace Express {
+        interface Request {
+            user?: TokenPayload;
+        }
     }
-  }
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization;
+    const bearerMatch = authHeader?.match(/^Bearer[ \t]+([^ \t]+)[ \t]*$/);
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Access token required.' });
-  }
+    if (!bearerMatch) {
+        return res.status(401).json({
+            error: "Bearer access token required.",
+        });
+    }
 
-  const token = authHeader.split(' ')[1];
-  const payload = verifyAccessToken(token as string);
+    const token = bearerMatch[1];
+    const payload = verifyAccessToken(token as string);
 
-  if (!payload) {
-    return res.status(401).json({ error: 'Invalid or expired access token.' });
-  }
+    if (!payload) {
+        return res.status(401).json({ error: 'Invalid or expired access token.' });
+    }
 
-  req.user = payload;
-  next();
+    req.user = payload;
+    return next();
 }
