@@ -58,6 +58,8 @@ export const login = async (req: Request, res: Response) => {
         return res.status(200).json({ accessToken, user });
 
     } catch (error) {
+        console.error("Login error:", error);
+        
         if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
             return res.status(401).json({
                 error: "Invalid email or password.",
@@ -120,7 +122,7 @@ export const testProtected = async (req: Request, res: Response) => {
     try {
         const user = await getUser(userId);  
         return res.status(200).json({ user }); 
-        
+
     } catch (error) {
         if (error instanceof Error && error.message == "USER_NOT_FOUND") {
             return res.status(404).json({ error: 'User not found.' });
