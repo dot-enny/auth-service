@@ -105,6 +105,10 @@ curl -i -X POST http://localhost:4000/api/auth/logout \
 
 The service periodically deletes refresh tokens after their expiration time. Revoked tokens are retained until expiration so that reuse detection can identify replayed tokens.
 
+Integration tests create uniquely named users and delete each test user in `afterAll`. Deleting the user also removes its refresh tokens through the database foreign-key cascade.
+
+Tests currently use the configured local PostgreSQL database. Use a dedicated test database or test-only credentials before running the suite against a shared environment.
+
 ## Security Notes
 
 - Never commit `.env`, credentials, refresh-token cookies, or production secrets.
