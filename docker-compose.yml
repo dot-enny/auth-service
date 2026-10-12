@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: auth_postgres
     environment:
-      POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_secret_password
-      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER:-auth_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-auth_secret_password}
+      POSTGRES_DB: ${POSTGRES_DB:-auth_db}
     ports:
       - "5433:5432" # Mapped to host 5433 to avoid port collisions with your URL shortener
     volumes:

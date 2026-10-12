@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { generateRefreshToken, hashPassword, signAccessToken, verifyPassword } from "../auth.utils.js";
-import { createUser, fetchRefreshToken, fetchUserByEmail, findUserByEmail, findUserById, invalidateTokenFamily, rotateRefreshToken, storeRefreshToken } from "../repositories/auth.repository.js";
+import { createUser, fetchRefreshToken, fetchUserByEmail, findTokenFamily, findUserByEmail, findUserById, invalidateTokenFamily, rotateRefreshToken, storeRefreshToken } from "../repositories/auth.repository.js";
 
 export const registerUser = async (email: string, password: string) => {
     const existingUser = await findUserByEmail(email);
@@ -99,4 +99,10 @@ export const getUser = async (userId: number) => {
     if (!user) throw new Error("USER_NOT_FOUND");
 
     return user;
+}
+
+export const logoutUser = async (rawRefreshToken: string) => {
+    const tokenHash = createHash('sha256').update(rawRefreshToken).digest('hex');
+    const familyId = await findTokenFamily(tokenHash);
+    if (familyId) await invalidateTokenFamily(familyId);
 }

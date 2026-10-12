@@ -3,11 +3,11 @@ import pg from 'pg';
 const { Pool } = pg;
 
 export const pool = new Pool({
-  host: 'localhost',
-  port: 5433, // Connected to host port 5433
-  user: 'auth_user',
-  password: 'auth_secret_password',
-  database: 'auth_db',
+  host: process.env.DB_HOST ?? 'localhost',
+  port: Number(process.env.DB_PORT ?? 5433),
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  database: process.env.POSTGRES_DB,
 });
 
 export async function initDb() {
@@ -36,4 +36,28 @@ export async function initDb() {
 
   await pool.query(schema);
   console.log('Database schema initialized successfully.');
+}
+
+export async function purgeExpiredTokens(): Promise<number> {
+  // Delete tokens where expiration date has passed
+  const query = `
+    DELETE FROM refresh_tokens
+    WHERE expires_at < CURRENT_TIMESTAMP;
+  `;
+  const result = await pool.query(query);
+  return result.rowCount ?? 0;
+}
+
+export function startTokenCleanupScheduler(intervalMs = 60 * 60 * 1000) {
+  // Run every hour (defaults to 3,600,000 ms)
+  setInterval(async () => {
+    try {
+      const deletedCount = await purgeExpiredTokens();
+      if (deletedCount > 0) {
+        console.log(`[CLEANUP] Purged ${deletedCount} expired refresh token(s).`);
+      }
+    } catch (err) {
+      console.error('[CLEANUP] Failed to purge expired tokens:', err);
+    }
+  }, intervalMs);
 }

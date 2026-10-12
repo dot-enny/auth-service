@@ -57,7 +57,7 @@ export const fetchRefreshToken = async (incomingHash: string) => {
 
 export const invalidateTokenFamily = async (familyId: string) => {
     const result = await pool.query('UPDATE refresh_tokens SET is_revoked = TRUE WHERE family_id = $1', [familyId]);
-    return result.rows[0] ?? null
+    return result.rowCount ?? 0
 }
 
 export const findUserById = async (userId: number) => {
@@ -112,3 +112,10 @@ export const rotateRefreshToken = async (
         client.release();
     }
 };
+
+export const findTokenFamily = async (tokenHash: string) => {
+    const findQuery = 'SELECT family_id FROM refresh_tokens WHERE token_hash = $1';
+    const result = await pool.query(findQuery, [tokenHash]);
+
+    return result.rows[0]?.family_id ?? null
+}

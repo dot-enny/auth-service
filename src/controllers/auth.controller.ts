@@ -1,5 +1,5 @@
 import { type Request, type Response } from "express"
-import { getUser, loginUser as loginUserService, refreshToken as refreshTokenService, registerUser as registerUserService } from "../services/auth.service.js";
+import { getUser, loginUser as loginUserService, logoutUser as logoutUserService, refreshToken as refreshTokenService, registerUser as registerUserService } from "../services/auth.service.js";
 
 export const register = async (req: Request, res: Response) => {
     const { email, password } = req.body;
@@ -23,6 +23,8 @@ export const register = async (req: Request, res: Response) => {
                 error: "A user with this email already exists.",
             });
         }
+
+        console.error("Registration error:", error);
     }
 
     return res.status(500).json({ error: 'Internal server error.' });
@@ -59,12 +61,14 @@ export const login = async (req: Request, res: Response) => {
 
     } catch (error) {
         console.error("Login error:", error);
-        
+
         if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
             return res.status(401).json({
                 error: "Invalid email or password.",
             });
         }
+
+        console.error("Login error:", error);
     }
 
     return res.status(500).json({ error: 'Internal server error.' });
@@ -94,7 +98,10 @@ export const refresh = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        if (!(error instanceof Error)) return;
+        if (!(error instanceof Error)) {
+            console.error("Refresh token error:", error);
+            return res.status(500).json({ error: 'Internal server error.' });
+        }
 
         res.clearCookie('refreshToken', { path: '/api/auth' });
 
@@ -109,7 +116,8 @@ export const refresh = async (req: Request, res: Response) => {
                 return res.status(401).json({ error: 'Refresh token has expired.' });
 
             default:
-                break
+                console.error("Refresh token error:", error);
+                break;
         }
     }
 
@@ -120,14 +128,38 @@ export const testProtected = async (req: Request, res: Response) => {
     // req.user is guaranteed to exist by requireAuth
     const userId = req.user!.userId;
     try {
-        const user = await getUser(userId);  
-        return res.status(200).json({ user }); 
+        const user = await getUser(userId);
+        return res.status(200).json({ user });
 
     } catch (error) {
-        if (error instanceof Error && error.message == "USER_NOT_FOUND") {
+        if (error instanceof Error && error.message === "USER_NOT_FOUND") {
             return res.status(404).json({ error: 'User not found.' });
         }
+
+        console.error("Protected route error:", error);
     }
 
     return res.status(500).json({ error: 'Internal server error.' });
+}
+
+export const logout = async (req: Request, res: Response) => {
+    const rawRefreshToken = req.cookies.refreshToken;
+
+    if (rawRefreshToken) {
+        try {
+            await logoutUserService(rawRefreshToken)
+        } catch (error) {
+            console.error('Error during token revocation on logout:', error);
+        }
+    }
+
+    // Clear cookie from the client regardless of DB outcome
+    res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/api/auth',
+    });
+
+    return res.status(200).json({ message: 'Logged out successfully.' });
 }

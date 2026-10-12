@@ -1,6 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import { initDb } from './db.js';
+import { initDb, startTokenCleanupScheduler } from './db.js';
 import authRouter from './routes/auth.routes.js';
 import protectedRouter from './routes/protected.routes.js';
 import { requireAuth } from './auth.middleware.js';
@@ -16,6 +17,10 @@ app.use('/api', requireAuth, protectedRouter);
 async function startServer() {
   try {
     await initDb();
+
+    // Start hourly background purge job
+    startTokenCleanupScheduler();
+
     app.listen(PORT, () => {
       console.log(`Auth server running on http://localhost:${PORT}`);
     });

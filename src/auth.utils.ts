@@ -2,7 +2,11 @@ import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'super-secret-access-key-replace-in-prod';
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET ?? '';
+
+if (!ACCESS_TOKEN_SECRET) {
+  throw new Error('ACCESS_TOKEN_SECRET must be set.');
+}
 const ACCESS_TOKEN_EXPIRY = '15m';
 
 export interface TokenPayload {
@@ -31,7 +35,7 @@ export function signAccessToken(payload: TokenPayload): string {
 
 export function verifyAccessToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, ACCESS_TOKEN_SECRET) as TokenPayload;
+    return jwt.verify(token, ACCESS_TOKEN_SECRET) as unknown as TokenPayload;
   } catch {
     return null;
   }
